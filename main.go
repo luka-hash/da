@@ -32,13 +32,18 @@ func getBatteryState() string {
 	stateRx := regexp.MustCompile(" *state: *(.*)\n")
 	state := stateRx.FindSubmatch(batteryOutput)[1]
 	return string(state)
+}
 
+func getVolume() string {
+	volume, _ := exec.Command("wpctl", "get-volume", "@DEFAULT_SINK@").Output()
+	return string(volume)
 }
 
 func getStatusLine() string {
 	dateAndTime := getDateAndTime()
 	batteryPercentage := getBatteryPercentage()
 	batteryState := getBatteryState()
+	volume := getVolume()
 	var statusLine strings.Builder
 	statusLine.WriteString(dateAndTime)
 	statusLine.WriteString(" | ")
@@ -46,6 +51,8 @@ func getStatusLine() string {
 	if batteryState != "discharging" {
 		statusLine.WriteString("(" + batteryState + ")")
 	}
+	statusLine.WriteString(" | ")
+	statusLine.WriteString(volume)
 	return statusLine.String()
 }
 
