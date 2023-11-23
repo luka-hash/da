@@ -12,19 +12,23 @@ import (
 	"time"
 )
 
+const (
+	period = 1 *time.Second
+)
+
 func clearScreen() {
 	print("\033[H\033[2J")
 }
 
 func getDateAndTime() string {
-	return time.Now().Local().Format("2006-01-02 | 15:04")
+	return time.Now().Local().Format("Date: 2006-01-02 | Time: 15:04")
 }
 
 func getBatteryPercentage() string {
 	batteryOutput, _ := exec.Command("upower", "-i", "/org/freedesktop/UPower/devices/battery_BAT0").Output()
 	percentageRx := regexp.MustCompile(" *percentage: *(.*)\n")
 	percentage := percentageRx.FindSubmatch(batteryOutput)[1]
-	return string(percentage)
+	return "Battery: "+string(percentage)
 }
 
 func getBatteryState() string {
@@ -36,7 +40,12 @@ func getBatteryState() string {
 
 func getVolume() string {
 	volume, _ := exec.Command("wpctl", "get-volume", "@DEFAULT_SINK@").Output()
-	return string(volume)
+	return strings.TrimSpace(string(volume))
+}
+
+func getBrightness() string {
+	brightness, _ := exec.Command("brightnessctl", "get").Output()
+	return "Brightness: "+strings.TrimSpace(string(brightness))+"%"
 }
 
 func getStatusLine() string {
@@ -44,6 +53,7 @@ func getStatusLine() string {
 	batteryPercentage := getBatteryPercentage()
 	batteryState := getBatteryState()
 	volume := getVolume()
+	brightness := getBrightness()
 	var statusLine strings.Builder
 	statusLine.WriteString(dateAndTime)
 	statusLine.WriteString(" | ")
@@ -53,13 +63,15 @@ func getStatusLine() string {
 	}
 	statusLine.WriteString(" | ")
 	statusLine.WriteString(volume)
+	statusLine.WriteString(" | ")
+	statusLine.WriteString(brightness)
 	return statusLine.String()
 }
 
 func main() {
 	clearScreen()
 	fmt.Println(getStatusLine())
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(period)
 	var blocker sync.WaitGroup
 	blocker.Add(1)
 	go func() {
