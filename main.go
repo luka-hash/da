@@ -1,19 +1,17 @@
-// Copyright (c) 2023 Luka Ivanović
-// This code is licensed under MIT licence (see LICENCE for details)
+// Copyright © 2023- Luka Ivanović
+// This code is licensed under the terms of the MIT licence (see LICENCE for details)
 
 package main
 
 import (
+	"flag"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
-)
-
-const (
-	period = 1 *time.Second
 )
 
 func clearScreen() {
@@ -28,7 +26,7 @@ func getBatteryPercentage() string {
 	batteryOutput, _ := exec.Command("upower", "-i", "/org/freedesktop/UPower/devices/battery_BAT0").Output()
 	percentageRx := regexp.MustCompile(" *percentage: *(.*)\n")
 	percentage := percentageRx.FindSubmatch(batteryOutput)[1]
-	return "Battery: "+string(percentage)
+	return "Battery: " + string(percentage)
 }
 
 func getBatteryState() string {
@@ -44,8 +42,9 @@ func getVolume() string {
 }
 
 func getBrightness() string {
-	brightness, _ := exec.Command("brightnessctl", "get").Output()
-	return "Brightness: "+strings.TrimSpace(string(brightness))+"%"
+	brightness, _ := exec.Command("brightnessctl", "info").Output()
+	brightnessRx := regexp.MustCompile(`\((.*)\)`)
+	return "Brightness: " + brightnessRx.FindStringSubmatch(string(brightness))[1]
 }
 
 func getStatusLine() string {
@@ -69,6 +68,14 @@ func getStatusLine() string {
 }
 
 func main() {
+	noTicker := flag.Bool("notick", false, "return the status line without updates every <period> seconds")
+	n := flag.Int("period", 20, "how often to refresh the status line")
+	flag.Parse()
+	period := time.Duration(*n) * time.Second
+	if *noTicker {
+		fmt.Println(getStatusLine())
+		os.Exit(0)
+	}
 	clearScreen()
 	fmt.Println(getStatusLine())
 	ticker := time.NewTicker(period)
@@ -76,11 +83,9 @@ func main() {
 	blocker.Add(1)
 	go func() {
 		for {
-			select {
-			case <-ticker.C:
-				clearScreen()
-				fmt.Println(getStatusLine())
-			}
+			<-ticker.C
+			clearScreen()
+			fmt.Println(getStatusLine())
 		}
 	}()
 	blocker.Wait()
