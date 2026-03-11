@@ -8,18 +8,23 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
 	"strings"
-	"sync"
+	"syscall"
 	"time"
 )
 
 func clearScreen() {
-	print("\033[H\033[2J")
+	fmt.Print("\033[H\033[2J")
 }
 
-func getDateAndTime() string {
-	return time.Now().Local().Format("Date: 2006-01-02 | Time: 15:04")
+func getDate() string {
+	return time.Now().Local().Format("Date: 2006-01-02")
+}
+
+func getTime() string {
+	return time.Now().Local().Format("Time: 15:04:05")
 }
 
 func getBatteryPercentage() string {
@@ -47,46 +52,54 @@ func getBrightness() string {
 	return "Brightness: " + brightnessRx.FindStringSubmatch(string(brightness))[1]
 }
 
-func getStatusLine() string {
-	dateAndTime := getDateAndTime()
-	batteryPercentage := getBatteryPercentage()
-	batteryState := getBatteryState()
+func getStatusLine(separator string) string {
+	date := getDate()
+	time := getTime()
+	// batteryPercentage := getBatteryPercentage()
+	// batteryState := getBatteryState()
 	volume := getVolume()
 	brightness := getBrightness()
 	var statusLine strings.Builder
-	statusLine.WriteString(dateAndTime)
-	statusLine.WriteString(" | ")
-	statusLine.WriteString(batteryPercentage)
-	if batteryState != "discharging" {
-		statusLine.WriteString("(" + batteryState + ")")
-	}
-	statusLine.WriteString(" | ")
+	statusLine.WriteString(date)
+	statusLine.WriteString(separator)
+	statusLine.WriteString(time)
+	statusLine.WriteString(separator)
+	// statusLine.WriteString(batteryPercentage)
+	// if batteryState != "discharging" {
+	// 	statusLine.WriteString("(" + batteryState + ")")
+	// }
+	// statusLine.WriteString(separator)
 	statusLine.WriteString(volume)
-	statusLine.WriteString(" | ")
+	statusLine.WriteString(separator)
 	statusLine.WriteString(brightness)
 	return statusLine.String()
 }
 
 func main() {
 	noTicker := flag.Bool("notick", false, "return the status line without updates every <period> seconds")
+	separator := flag.String("separator", " | ", "separator to use between status items")
 	n := flag.Int("period", 20, "how often to refresh the status line")
 	flag.Parse()
-	period := time.Duration(*n) * time.Second
+
 	if *noTicker {
-		fmt.Println(getStatusLine())
+		fmt.Println(getStatusLine(*separator))
 		os.Exit(0)
 	}
-	clearScreen()
-	fmt.Println(getStatusLine())
+
+	period := time.Duration(*n) * time.Second
 	ticker := time.NewTicker(period)
-	var blocker sync.WaitGroup
-	blocker.Add(1)
-	go func() {
-		for {
-			<-ticker.C
-			clearScreen()
-			fmt.Println(getStatusLine())
+	defer ticker.Stop()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	for {
+		select {
+		case <-ticker.C:
+			fmt.Print("\r\033[K" + getStatusLine(*separator))
+		case <-sigs:
+			return
 		}
-	}()
-	blocker.Wait()
+	}
+
 }
